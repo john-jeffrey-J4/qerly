@@ -103,7 +103,9 @@ def draw_wrapped_text(pdf, text, x, y, width, font_size=8, leading=14, words_per
     for line in lines:
         pdf.drawString(x, y, line)
         y -= leading
-@quest_router.post("/generate_pdf/")
+        
+
+@quest_router.post("/generate_pdf")
 async def generate_pdf(feedback: schemas.UserFeedback):
     try:
         # Create a PDF buffer
