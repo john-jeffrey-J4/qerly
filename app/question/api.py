@@ -116,12 +116,12 @@ async def generate_pdf(feedback: schemas.UserFeedback):
 
         # Create a PDF document
         pdf = canvas.Canvas(pdf_buffer, pagesize=(width, height))
-
+        pdf.drawString(100, 800, "")
         # Write content to PDF
-        pdf.drawString(100, 800, f"User: {feedback.user['name']}")
-        pdf.drawString(100, 780, f"App Name: {feedback.user['app_name']}")
+        pdf.drawString(100, 770, f"User: {feedback.user['name']}")
+        pdf.drawString(100, 750, f"App Name: {feedback.user['app_name']}")
 
-        y_position = 750
+        y_position = 730
         for result in feedback.questionnaire_results:
             pdf.drawString(100, y_position, f"Skill: {result['skill']}")
 
@@ -133,7 +133,7 @@ async def generate_pdf(feedback: schemas.UserFeedback):
             quote_text = f"Quote: {result['quote']}"
             draw_wrapped_text(pdf, quote_text, 120, y_position - 80, width=400, font_size=10, leading=12, words_per_line=12)
 
-            y_position -= 120
+            y_position -= 110
 
             if y_position < 50:
                 pdf.showPage()  # Start a new page
@@ -141,11 +141,11 @@ async def generate_pdf(feedback: schemas.UserFeedback):
 
         # Word wrap for closing message
         closing_text = f"Closing Message: {feedback.closing_message}"
-        draw_wrapped_text(pdf, closing_text, 100, y_position, width=400, words_per_line=12)
+        draw_wrapped_text(pdf, closing_text, 100, y_position-20, width=400, words_per_line=12)
 
         # Word wrap for team message
         team_text = f"Team Message: {feedback.team_message}"
-        draw_wrapped_text(pdf, team_text, 100, y_position - 40, width=400, words_per_line=12)
+        draw_wrapped_text(pdf, team_text, 100, y_position - 80, width=400, words_per_line=12)
 
         # Save the PDF to the buffer
         pdf.save()
