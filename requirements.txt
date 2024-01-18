@@ -96,3 +96,4 @@ websockets==10.4
 win32-setctime==1.1.0
 XlsxWriter==3.1.0
 zopfli==0.2.2
+aiosmtplib
