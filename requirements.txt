@@ -1,0 +1,3 @@
+fastapi==0.95.1
+FastAPI-SQLAlchemy==0.2.1
+fastapi-utils==0.2.1
