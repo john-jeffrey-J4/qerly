@@ -13,3 +13,9 @@ class UserAnswerRequest(BaseModel):
     pair_id: int
     answer_json:AnswerItem
     sort_order: int
+
+class UserFeedback(BaseModel):
+    user: dict
+    questionnaire_results: list
+    closing_message: str
+    team_message: str

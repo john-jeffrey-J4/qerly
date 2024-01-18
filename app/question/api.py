@@ -7,15 +7,23 @@ from datetime import datetime
 import logging
 import os
 import json
+from reportlab.pdfgen import canvas
 
 from fastapi import Query
 from typing import Optional
 from starlette.responses import JSONResponse
 from app.question import models, crud, schemas
 from fastapi import FastAPI, HTTPException
-
+from fastapi.responses import StreamingResponse
 from openai import OpenAI, OpenAIError
+import shutil
 
+
+from fastapi.responses import StreamingResponse  # Import StreamingResponse
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from io import BytesIO 
+import textwrap
 quest_router = APIRouter()
 
 
@@ -59,35 +67,103 @@ def generatearticle(answer_json_dict: schemas.Ranking):
         dict: A dictionary containing the generated article as the value for the "message" key.
     """
     print(answer_json_dict)
-    # try:
-    prompt = f"Given the user's answers - Ranking:acceptance, Importance:critical, Performance: Not good - provide a response."
-    # api_key = os.getenv("OPENAI_API_KEY")
-    # client = OpenAI(api_key=api_key)
-    client = OpenAI(
-        api_key="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")
-    response = client.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "user", "content": prompt},
-            # {"role": "user", "content": "Who won the world series in 2020?"},
-            # {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-            # {"role": "user", "content": "Where was it played?"}
-        ],
-        max_tokens=150
-    )
-    print(response, "res")
-    content = response.choices[0].message.content
+    try:
+        prompt = "Given the user's answers - Ranking:acceptance, Importance:critical, Performance: Not good - provide a response."
+        
+        client = OpenAI(api_key="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")
+        response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": prompt}
+                    ]
+                )
+        print(response, "res")
+        content = response.choices[0].message.content
 
-    return {"message": content}
+        return {"message": content}
 
-    # except OpenAIError as e:
+    except OpenAIError as e:
 
-    #     print(e.error)
-    #     return jsonify(e)
-    # except HTTPException as e:
-    # # Handle specific FastAPI HTTP exceptions if needed
-    #     raise e
+        # print(e.error)
+        raise e
+    except HTTPException as e:
+    # Handle specific FastAPI HTTP exceptions if needed
+        raise e
     # except Exception as e:
     #     # Handle other exceptions (e.g., OpenAIError)
     #     print(e)
     #     raise HTTPException(status_code=500, detail="Internal Server Error")
+def draw_wrapped_text(pdf, text, x, y, width, font_size=8, leading=14, words_per_line=14):
+    pdf.setFont("Helvetica", font_size)
+    pdf.setFillColorRGB(0, 0, 0)
+
+    words = text.split()
+    lines = [" ".join(words[i:i+words_per_line]) for i in range(0, len(words), words_per_line)]
+
+    for line in lines:
+        pdf.drawString(x, y, line)
+        y -= leading
+@quest_router.post("/generate_pdf/")
+async def generate_pdf(feedback: schemas.UserFeedback):
+    try:
+        # Create a PDF buffer
+        pdf_buffer = BytesIO()
+
+        # Define the page size (letter size)
+        width, height = letter
+
+        # Create a PDF document
+        pdf = canvas.Canvas(pdf_buffer, pagesize=(width, height))
+
+        # Write content to PDF
+        pdf.drawString(100, 800, f"User: {feedback.user['name']}")
+        pdf.drawString(100, 780, f"App Name: {feedback.user['app_name']}")
+
+        y_position = 750
+        for result in feedback.questionnaire_results:
+            pdf.drawString(100, y_position, f"Skill: {result['skill']}")
+
+            # Word wrap for suggestion
+            suggestion_text = f"Suggestion: {result['suggestion']}"
+            draw_wrapped_text(pdf, suggestion_text, 120, y_position - 20, width=400, words_per_line=12)
+
+            # Word wrap for quote
+            quote_text = f"Quote: {result['quote']}"
+            draw_wrapped_text(pdf, quote_text, 120, y_position - 80, width=400, font_size=10, leading=12, words_per_line=12)
+
+            y_position -= 120
+
+            if y_position < 50:
+                pdf.showPage()  # Start a new page
+                y_position = 750  # Reset y-coordinate for the new page
+
+        # Word wrap for closing message
+        closing_text = f"Closing Message: {feedback.closing_message}"
+        draw_wrapped_text(pdf, closing_text, 100, y_position, width=400, words_per_line=12)
+
+        # Word wrap for team message
+        team_text = f"Team Message: {feedback.team_message}"
+        draw_wrapped_text(pdf, team_text, 100, y_position - 40, width=400, words_per_line=12)
+
+        # Save the PDF to the buffer
+        pdf.save()
+
+        # Move the buffer's cursor to the beginning
+        pdf_buffer.seek(0)
+
+        # Specify the folder where you want to save the PDF
+        folder_path = "pdf"  # Update this path
+
+        # Ensure the folder exists
+        os.makedirs(folder_path, exist_ok=True)
+
+        # Save the PDF to a file in the specified folder
+        pdf_filename = os.path.join(folder_path, feedback.user['name']+".pdf")
+        with open(pdf_filename, "wb") as pdf_file:
+            shutil.copyfileobj(pdf_buffer, pdf_file)
+
+        # Return the PDF as a StreamingResponse
+        return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={'Content-Disposition': 'attachment; filename=user_feedback.pdf'})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
